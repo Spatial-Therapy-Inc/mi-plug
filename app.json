@@ -3,8 +3,8 @@
   "kind": "extension",
   "version": "0.1.0",
   "name": {
-    "zh": "mi-plug",
-    "en": "mi-plug"
+    "zh": "米家开关",
+    "en": "Mi Home Switch"
   },
   "boards": [
     "tikpal-r1"
@@ -15,26 +15,49 @@
   "capabilities": {},
   "launch": {
     "summary": {
-      "zh": "计数器样板：短按加一，按住清零。",
-      "en": "Counter template: tap to count, hold to reset."
+      "zh": "在圆屏上开关家里的小米 Wi-Fi 设备：插座、台灯、风扇。点一下开，再点一下关，左右滑换设备。",
+      "en": "Switch your Xiaomi Wi-Fi devices at home (plugs, lamps, fans) on and off from the round screen."
     },
     "examples": {
       "zh": [
-        "打开计数器",
-        "帮我数数"
+        "打开米家开关",
+        "把插座打开",
+        "关掉台灯",
+        "帮我把风扇关了",
+        "开一下卧室的灯"
       ],
       "en": [
-        "Open the counter",
-        "Count for me"
+        "Open Mi Home Switch",
+        "Turn the plug on",
+        "Turn off the lamp",
+        "Switch the fan off"
       ]
+    },
+    "params": {
+      "action": {
+        "type": "string",
+        "description": "要做什么：on 打开，off 关闭，toggle 切换",
+        "enum": [
+          "on",
+          "off",
+          "toggle"
+        ]
+      },
+      "device": {
+        "type": "string",
+        "description": "设备的名字，比如「台灯」「卧室的插座」；不说就用上次那台"
+      }
     }
   },
   "aliases": {
     "zh": [
-      "计数器"
+      "米家",
+      "插座",
+      "智能插座"
     ],
     "en": [
-      "Counter"
+      "Mi Home",
+      "Smart plug"
     ]
   },
   "scenes": [
