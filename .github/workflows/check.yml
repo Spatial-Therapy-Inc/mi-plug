@@ -1,0 +1,35 @@
+# The app's own checks on GitHub's machines (not Tikpal's): the release build in ESP-IDF 5.5.5's container, its host
+# tests, then ./kit check (manifest, version, the kit untouched, nothing that looks like a key or a round screen's id).
+# The image's SHA-256 ./kit check prints here is the one a submission gives.
+name: Check
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5.5
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          submodules: true
+          fetch-tags: true
+      - name: Kit tags (./kit check wants devkit/ on a version tag)
+        run: git -c safe.directory='*' -C devkit fetch --tags --quiet origin
+      - name: Release build and host tests
+        run: ./kit build --release
+      - name: Check
+        run: ./kit check
+      # The release image this commit builds to, as the review rebuilds it (the same container): its SHA-256 is the
+      # submission's. compare_images.py tells it from a Mac build (they differ only in the ELF hash and two checksums).
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release
+          path: |
+            build-release/*.bin
+            build-release/sdkconfig
+            build-release/project_description.json
+          retention-days: 90

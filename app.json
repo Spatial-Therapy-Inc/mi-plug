@@ -1,0 +1,47 @@
+{
+  "slug": "mi-plug",
+  "kind": "extension",
+  "version": "0.1.0",
+  "name": {
+    "zh": "mi-plug",
+    "en": "mi-plug"
+  },
+  "boards": [
+    "tikpal-r1"
+  ],
+  "layout": "yaykit-v1",
+  "minYay": "0.1.13",
+  "apiLevel": 3,
+  "capabilities": {},
+  "launch": {
+    "summary": {
+      "zh": "计数器样板：短按加一，按住清零。",
+      "en": "Counter template: tap to count, hold to reset."
+    },
+    "examples": {
+      "zh": [
+        "打开计数器",
+        "帮我数数"
+      ],
+      "en": [
+        "Open the counter",
+        "Count for me"
+      ]
+    }
+  },
+  "aliases": {
+    "zh": [
+      "计数器"
+    ],
+    "en": [
+      "Counter"
+    ]
+  },
+  "scenes": [
+    "tools"
+  ],
+  "audience": "all",
+  "pricing": {
+    "kind": "free"
+  }
+}

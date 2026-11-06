@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# This app's kit command: the development kit pinned in devkit/ (a git submodule, at the version the app was made
+# with or moved to by `./kit update`).
+set -euo pipefail
+APP=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+[ -x "$APP/devkit/kit" ] || git -C "$APP" submodule update --init devkit
+YAYKIT_APP="$APP" exec "$APP/devkit/kit" "$@"
