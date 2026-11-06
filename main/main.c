@@ -1,6 +1,7 @@
 // mi-plug（米家开关）: switches the user's own Xiaomi Wi-Fi devices (plugs, lights, fans…) on and off from the round
 // screen, straight over the home network with the miIO protocol. A self-use prototype: nothing goes to the
-// internet, and the devices (IP, token, model) are added over USB with `yk cmd miplug.add` (README).
+// internet. Devices (IP, token, model) are added from a phone: hold the side key, scan the QR code, and the config
+// page on the home network (webcfg.c) adds, imports, renames and tries them; or over USB (`yk cmd miplug.*`).
 //
 // One device a page: tap the big circle or the side key to switch it, swipe left or right for the next one. Yay can
 // open the app with {"action":"on|off|toggle","device":"台灯"}.
@@ -21,10 +22,12 @@
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "mi_plug.h"
 #include "miio_lan.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "plug_logic.h"
+#include "webcfg.h"
 #include "yaykit_app.h"
 #include "yaykit_key.h"
 #include "yaykit_link.h"
@@ -168,9 +171,13 @@ static void worker(void *arg) {
 
 // ---------------------------------------------------------------- the screen (LVGL task / board lock only)
 
-static lv_obj_t *s_screen, *s_name, *s_circle, *s_big, *s_status, *s_dots[PLUG_MAX], *s_empty[2];
+static lv_obj_t *s_screen, *s_name, *s_circle, *s_big, *s_status, *s_dots[PLUG_MAX], *s_empty[3];
+static lv_obj_t *s_cfg, *s_cfg_qr, *s_cfg_title, *s_cfg_addr;  // the config page's QR code, over the page
 static lv_point_t s_press;
 static bool s_pressing_circle;
+static bool s_cfg_open;
+static char s_cfg_url[96];               // http://<ip>/#k=<key>, "" without a network
+static volatile bool s_want_cfg_toggle;  // the side key held: open / close the config page
 
 static bool in_circle(const lv_point_t *p) {
     const int dx = p->x - YK_CX, dy = p->y - CIRCLE_CY;
@@ -190,7 +197,7 @@ static void select_page(int index) {
 static void on_touch(lv_event_t *e) {
     const lv_event_code_t code = lv_event_get_code(e);
     lv_indev_t *indev = lv_indev_active();
-    if (!indev) return;
+    if (!indev || s_cfg_open) return;
     lv_point_t p;
     lv_indev_get_point(indev, &p);
     if (code == LV_EVENT_PRESSED) {
@@ -210,6 +217,32 @@ static void on_touch(lv_event_t *e) {
         return;
     }
     if (s_pressing_circle && in_circle(&p)) post(JOB_TOGGLE, s_current, false);
+}
+
+static void on_cfg_button(lv_event_t *e) {
+    (void)e;
+    yk_app_input();
+    s_want_cfg_toggle = true;  // acted on in the LVGL timer
+}
+
+static void show_cfg(void) {
+    lv_obj_set_hidden(s_cfg, !s_cfg_open);
+    if (!s_cfg_open) return;
+    if (s_cfg_url[0]) {
+        lv_label_set_text(s_cfg_title, T("用手机扫码设置", "Scan to set up"));
+        if (lv_qrcode_update(s_cfg_qr, s_cfg_url, strlen(s_cfg_url)) != LV_RESULT_OK) ESP_LOGW(TAG, "QR failed");
+        // The address without the key: the key is only for the phone that scans.
+        const char *host = s_cfg_url + strlen("http://");
+        const char *slash = strchr(host, '/');
+        char addr[32];
+        snprintf(addr, sizeof(addr), "%.*s", slash ? (int)(slash - host) : 31, host);
+        lv_label_set_text(s_cfg_addr, addr);
+        lv_obj_set_hidden(s_cfg_qr, false);
+    } else {
+        lv_label_set_text(s_cfg_title, T("回 Tikpal 设置网络", "Set up Wi-Fi in Tikpal"));
+        lv_label_set_text(s_cfg_addr, "");
+        lv_obj_set_hidden(s_cfg_qr, true);
+    }
 }
 
 static void build(void) {
@@ -240,8 +273,31 @@ static void build(void) {
         lv_obj_set_scrollable(d, false);
         s_dots[i] = d;
     }
-    s_empty[0] = yk_ui_label(s_screen, T("还没有设备", "No devices yet"), 33, 190, 400, YK_SIZE_HEADING, YK_INK);
-    s_empty[1] = yk_ui_label(s_screen, T("在电脑上用 USB 添加", "Add one over USB"), 33, 240, 400, YK_SIZE_MIN, YK_INK2);
+    s_empty[0] = yk_ui_label(s_screen, T("还没有设备", "No devices yet"), 33, 150, 400, YK_SIZE_HEADING, YK_INK);
+    s_empty[1] = yk_ui_label(s_screen, T("用手机添加，或者按住侧键", "Add from your phone, or hold the side key"), 53, 194, 360,
+                             YK_SIZE_MIN, YK_INK2);
+    s_empty[2] = yk_ui_button(s_screen, T("添加设备", "Add a device"), 143, 250, 180, 64, on_cfg_button, NULL, YK_CORAL);
+
+    // The config page: a QR code over everything, until closed (the side key held again, or 完成).
+    s_cfg = lv_obj_create(s_screen);
+    lv_obj_set_size(s_cfg, 466, 466);
+    lv_obj_set_pos(s_cfg, 0, 0);
+    lv_obj_set_style_bg_color(s_cfg, lv_color_hex(YK_PAPER), 0);
+    lv_obj_set_style_border_width(s_cfg, 0, 0);
+    lv_obj_set_style_radius(s_cfg, 0, 0);
+    lv_obj_set_style_pad_all(s_cfg, 0, 0);
+    lv_obj_set_scrollable(s_cfg, false);  // clickable: touches here do not reach the page under it
+    s_cfg_title = yk_ui_label(s_cfg, "", 33, 52, 400, YK_SIZE_HEADING, YK_INK);
+    s_cfg_qr = lv_qrcode_create(s_cfg);
+    lv_qrcode_set_size(s_cfg_qr, 200);
+    lv_qrcode_set_dark_color(s_cfg_qr, lv_color_hex(YK_PAPER));
+    lv_qrcode_set_light_color(s_cfg_qr, lv_color_hex(YK_INK));
+    lv_obj_set_style_border_color(s_cfg_qr, lv_color_hex(YK_INK), 0);
+    lv_obj_set_style_border_width(s_cfg_qr, 8, 0);
+    lv_obj_set_pos(s_cfg_qr, YK_CX - 108, 100);
+    s_cfg_addr = yk_ui_label(s_cfg, "", 83, 322, 300, YK_SIZE_MIN, YK_INK2);
+    yk_ui_button(s_cfg, T("完成", "Done"), 177, 360, 112, 56, on_cfg_button, NULL, YK_PANEL);
+    show_cfg();
 }
 
 static void show(void) {
@@ -256,7 +312,7 @@ static void show(void) {
     const bool empty = count == 0;
     lv_obj_t *const page[] = {s_name, s_circle, s_status};
     for (size_t i = 0; i < sizeof(page) / sizeof(page[0]); i++) lv_obj_set_hidden(page[i], empty);
-    for (int i = 0; i < 2; i++) lv_obj_set_hidden(s_empty[i], !empty);
+    for (int i = 0; i < 3; i++) lv_obj_set_hidden(s_empty[i], !empty);
     if (empty) return;
 
     lv_label_set_text(s_name, name);
@@ -286,6 +342,32 @@ static void show(void) {
         lv_obj_set_style_bg_color(s_dots[i], lv_color_hex(i == current ? YK_SAGE : YK_PANEL), 0);
 }
 
+/** Opens the config page: a new key, the server, the QR code; the screen stays on while it is open (F-07). */
+static void open_cfg(void) {
+    s_cfg_url[0] = 0;
+    if (yk_wifi_state() == YK_WIFI_CONNECTED) {
+        cJSON *wifi = cJSON_CreateObject();
+        yk_wifi_describe(wifi);
+        const char *ip = cJSON_GetStringValue(cJSON_GetObjectItem(wifi, "ip"));
+        char key[WEBCFG_KEY_LEN + 1];
+        if (ip && webcfg_start(key) == ESP_OK) snprintf(s_cfg_url, sizeof(s_cfg_url), "http://%s/#k=%s", ip, key);
+        memset(key, 0, sizeof(key));
+        cJSON_Delete(wifi);
+    }
+    s_cfg_open = true;
+    yk_app_keep_screen_on(true);
+    show_cfg();
+}
+
+static void close_cfg(void) {
+    webcfg_stop();
+    memset(s_cfg_url, 0, sizeof(s_cfg_url));
+    s_cfg_open = false;
+    yk_app_keep_screen_on(false);
+    show_cfg();
+    s_dirty = true;
+}
+
 /** LVGL timer: runs with the board lock held. */
 static void tick(lv_timer_t *timer) {
     (void)timer;
@@ -294,13 +376,21 @@ static void tick(lv_timer_t *timer) {
     if (wifi != last_wifi) {
         // Connected now: read the page we are on.
         if (wifi == YK_WIFI_CONNECTED && s_list.count && s_power[s_current] == POWER_UNKNOWN) post(JOB_READ, s_current, false);
+        if (wifi == YK_WIFI_CONNECTED && s_cfg_open && !s_cfg_url[0]) open_cfg();  // the network came: show the code
         last_wifi = wifi;
         s_dirty = true;
     }
     if (s_key_tap) {
         s_key_tap = false;
-        if (s_list.count) post(JOB_TOGGLE, s_current, false);
+        if (s_cfg_open) close_cfg();
+        else if (s_list.count) post(JOB_TOGGLE, s_current, false);
     }
+    if (s_want_cfg_toggle) {
+        s_want_cfg_toggle = false;
+        if (s_cfg_open) close_cfg();
+        else open_cfg();
+    }
+    if (s_cfg_open && webcfg_running() && webcfg_idle_s() > WEBCFG_IDLE_S) close_cfg();
     if (s_rebuild) {
         s_rebuild = false;
         build();
@@ -317,10 +407,14 @@ static void tick(lv_timer_t *timer) {
 static bool on_key(const yk_key_event_t *ev, void *ctx) {
     (void)ctx;
     if (ev->type == YK_KEY_TAP) {
-        s_key_tap = true;  // acted on in the LVGL timer
+        s_key_tap = true;  // acted on in the LVGL timer: switch (or close the config page)
         return true;
     }
-    return false;  // a hold: the system asks 「回到 Yay 说？」; the double click is the app ring
+    if (ev->type == YK_KEY_HOLD) {
+        s_want_cfg_toggle = true;  // the config page
+        return true;
+    }
+    return false;  // the double click is the app ring
 }
 
 static void on_leave(void *ctx) {
@@ -348,9 +442,13 @@ static void apply_launch(const yk_launch_t *launch) {
     cJSON_Delete(params);
 }
 
-// ---------------------------------------------------------------- yk cmd miplug.*: adding devices over USB
+// ---------------------------------------------------------------- managing devices (mi_plug.h): USB and the page
 
-static void describe(cJSON *reply) {
+static const char *const NOTES[] = {[NOTE_BUSY] = "busy", [NOTE_UNREACHABLE] = "unreachable", [NOTE_TOKEN] = "token",
+                                    [NOTE_REFUSED] = "refused"};
+
+/** With s_lock held. */
+static void describe_locked(cJSON *reply) {
     cJSON *arr = cJSON_AddArrayToObject(reply, "devices");
     for (int i = 0; i < s_list.count; i++) {
         const plug_t *p = &s_list.items[i];
@@ -361,8 +459,16 @@ static void describe(cJSON *reply) {
         cJSON_AddNumberToObject(o, "siid", p->siid);
         cJSON_AddNumberToObject(o, "piid", p->piid);
         cJSON_AddStringToObject(o, "power", s_power[i] == POWER_ON ? "on" : s_power[i] == POWER_OFF ? "off" : "unknown");
+        if (s_note[i] != NOTE_NONE) cJSON_AddStringToObject(o, "note", NOTES[s_note[i]]);
         cJSON_AddItemToArray(arr, o);  // the token never goes out
     }
+    cJSON_AddNumberToObject(reply, "current", s_current);
+}
+
+void mp_describe(cJSON *reply) {
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    describe_locked(reply);
+    xSemaphoreGive(s_lock);
 }
 
 static int number_or(const cJSON *args, const char *key, int fallback) {
@@ -370,90 +476,125 @@ static int number_or(const cJSON *args, const char *key, int fallback) {
     return cJSON_IsNumber(v) ? v->valueint : fallback;
 }
 
-static esp_err_t plug_command(const char *name, const cJSON *args, cJSON *reply, const char **code) {
-    if (!strcmp(name, "miplug.add")) {
-        plug_t p = {0};
-        const char *n = cJSON_GetStringValue(cJSON_GetObjectItem(args, "name"));
-        const char *ip = cJSON_GetStringValue(cJSON_GetObjectItem(args, "ip"));
-        const char *token = cJSON_GetStringValue(cJSON_GetObjectItem(args, "token"));
-        const char *model = cJSON_GetStringValue(cJSON_GetObjectItem(args, "model"));
-        snprintf(p.name, sizeof(p.name), "%s", n ? n : "");
-        snprintf(p.ip, sizeof(p.ip), "%s", ip ? ip : "");
-        snprintf(p.token, sizeof(p.token), "%s", token ? token : "");
-        snprintf(p.model, sizeof(p.model), "%s", model ? model : "");
-        const int siid = number_or(args, "siid", 2), piid = number_or(args, "piid", 1);
-        p.siid = (uint8_t)(siid > 0 && siid < 256 ? siid : 0);
-        p.piid = (uint8_t)(piid > 0 && piid < 256 ? piid : 0);
-        const char *bad = plug_check(&p);
-        if (bad) {
-            cJSON_AddStringToObject(reply, "field", bad);
-            *code = "BAD_DEVICE";
-            return ESP_ERR_INVALID_ARG;
-        }
-        xSemaphoreTake(s_lock, portMAX_DELAY);
-        const int before = plug_list_find(&s_list, p.name);
-        const bool replaced = before >= 0 && !strcmp(s_list.items[before].name, p.name);
-        const bool ok = plug_list_put(&s_list, &p);
-        const int at = plug_list_find(&s_list, p.name);
-        if (ok && at >= 0) {
-            s_power[at] = POWER_UNKNOWN, s_note[at] = NOTE_NONE;
-            s_current = at;
-            store_save();
-        }
-        describe(reply);
-        xSemaphoreGive(s_lock);
+esp_err_t mp_add(const cJSON *args, const char **field, bool *replaced) {
+    plug_t p = {0};
+    const char *n = cJSON_GetStringValue(cJSON_GetObjectItem(args, "name"));
+    const char *ip = cJSON_GetStringValue(cJSON_GetObjectItem(args, "ip"));
+    const char *token = cJSON_GetStringValue(cJSON_GetObjectItem(args, "token"));
+    const char *model = cJSON_GetStringValue(cJSON_GetObjectItem(args, "model"));
+    snprintf(p.name, sizeof(p.name), "%s", n ? n : "");
+    snprintf(p.ip, sizeof(p.ip), "%s", ip ? ip : "");
+    snprintf(p.token, sizeof(p.token), "%s", token ? token : "");
+    snprintf(p.model, sizeof(p.model), "%s", model ? model : "");
+    const int siid = number_or(args, "siid", 2), piid = number_or(args, "piid", 1);
+    p.siid = (uint8_t)(siid > 0 && siid < 256 ? siid : 0);
+    p.piid = (uint8_t)(piid > 0 && piid < 256 ? piid : 0);
+    const char *bad = plug_check(&p);
+    if (bad || (n && strlen(n) >= PLUG_NAME_MAX) || (token && strlen(token) != 32)) {
+        if (field) *field = bad ? bad : (token && strlen(token) != 32) ? "token" : "name";
         memset(&p, 0, sizeof(p));
-        if (!ok) {
-            *code = "FULL";
-            return ESP_ERR_NO_MEM;
-        }
-        cJSON_AddBoolToObject(reply, "replaced", replaced);
-        s_rebuild = true;
-        post(JOB_READ, at, false);
-        return ESP_OK;
+        return ESP_ERR_INVALID_ARG;
     }
-    if (!strcmp(name, "miplug.remove")) {
-        const char *n = cJSON_GetStringValue(cJSON_GetObjectItem(args, "name"));
-        xSemaphoreTake(s_lock, portMAX_DELAY);
-        const int at = n ? plug_list_find(&s_list, n) : -1;
-        const bool ok = at >= 0 && !strcmp(s_list.items[at].name, n) && plug_list_remove(&s_list, n);
-        if (ok) {
-            for (int i = at; i < PLUG_MAX - 1; i++) s_power[i] = s_power[i + 1], s_note[i] = s_note[i + 1];
-            s_power[PLUG_MAX - 1] = POWER_UNKNOWN, s_note[PLUG_MAX - 1] = NOTE_NONE;
-            if (s_current >= s_list.count) s_current = s_list.count ? s_list.count - 1 : 0;
-            store_save();
-        }
-        describe(reply);
-        xSemaphoreGive(s_lock);
-        if (!ok) {
-            *code = "NOT_FOUND";
-            return ESP_ERR_NOT_FOUND;
-        }
-        s_rebuild = true;
-        return ESP_OK;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    const int before = plug_list_find(&s_list, p.name);
+    const bool same = before >= 0 && !strcmp(s_list.items[before].name, p.name);
+    const bool ok = plug_list_put(&s_list, &p);
+    int at = -1;
+    if (ok) {
+        for (int i = 0; i < s_list.count; i++)
+            if (!strcmp(s_list.items[i].name, p.name)) at = i;
+        s_power[at] = POWER_UNKNOWN, s_note[at] = NOTE_NONE;
+        s_current = at;
+        store_save();
     }
-    if (!strcmp(name, "miplug.list")) {
-        xSemaphoreTake(s_lock, portMAX_DELAY);
-        describe(reply);
-        cJSON_AddNumberToObject(reply, "current", s_current);
-        xSemaphoreGive(s_lock);
-        return ESP_OK;
+    xSemaphoreGive(s_lock);
+    memset(&p, 0, sizeof(p));
+    if (!ok) return ESP_ERR_NO_MEM;
+    if (replaced) *replaced = same;
+    s_rebuild = true;
+    post(JOB_READ, at, false);
+    return ESP_OK;
+}
+
+esp_err_t mp_remove(const char *name) {
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    int at = -1;
+    for (int i = 0; i < s_list.count; i++)
+        if (!strcmp(s_list.items[i].name, name)) at = i;
+    const bool ok = at >= 0 && plug_list_remove(&s_list, name);
+    if (ok) {
+        for (int i = at; i < PLUG_MAX - 1; i++) s_power[i] = s_power[i + 1], s_note[i] = s_note[i + 1];
+        s_power[PLUG_MAX - 1] = POWER_UNKNOWN, s_note[PLUG_MAX - 1] = NOTE_NONE;
+        if (s_current >= s_list.count) s_current = s_list.count ? s_list.count - 1 : 0;
+        store_save();
     }
-    if (!strcmp(name, "miplug.set")) {  // {"name"?, "on": true|false} or no "on" to toggle
-        const char *n = cJSON_GetStringValue(cJSON_GetObjectItem(args, "name"));
+    xSemaphoreGive(s_lock);
+    if (!ok) return ESP_ERR_NOT_FOUND;
+    s_rebuild = true;
+    return ESP_OK;
+}
+
+esp_err_t mp_rename(const char *name, const char *new_name) {
+    if (!new_name[0] || strlen(new_name) >= PLUG_NAME_MAX) return ESP_ERR_INVALID_ARG;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    int at = -1, taken = -1;
+    for (int i = 0; i < s_list.count; i++) {
+        if (!strcmp(s_list.items[i].name, name)) at = i;
+        if (!strcmp(s_list.items[i].name, new_name)) taken = i;
+    }
+    esp_err_t err = at < 0 ? ESP_ERR_NOT_FOUND : taken >= 0 && taken != at ? ESP_ERR_INVALID_STATE : ESP_OK;
+    if (err == ESP_OK) {
+        snprintf(s_list.items[at].name, sizeof(s_list.items[at].name), "%s", new_name);
+        store_save();
+    }
+    xSemaphoreGive(s_lock);
+    if (err == ESP_OK) s_dirty = true;
+    return err;
+}
+
+esp_err_t mp_switch(const char *name, int on) {
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    const int at = name ? plug_list_find(&s_list, name) : (s_list.count ? s_current : -1);
+    xSemaphoreGive(s_lock);
+    if (at < 0) return ESP_ERR_NOT_FOUND;
+    if (on < 0) post(JOB_TOGGLE, at, false);
+    else post(JOB_SET, at, on == 1);
+    return ESP_OK;
+}
+
+// ---------------------------------------------------------------- yk cmd miplug.*: the same over USB
+
+static esp_err_t plug_command(const char *name, const cJSON *args, cJSON *reply, const char **code) {
+    const char *n = cJSON_GetStringValue(cJSON_GetObjectItem(args, "name"));
+    esp_err_t err;
+    if (!strcmp(name, "miplug.add")) {
+        const char *field = NULL;
+        bool replaced = false;
+        err = mp_add(args, &field, &replaced);
+        if (err == ESP_ERR_INVALID_ARG) cJSON_AddStringToObject(reply, "field", field ? field : "name");
+        if (err == ESP_OK) cJSON_AddBoolToObject(reply, "replaced", replaced);
+    } else if (!strcmp(name, "miplug.remove")) {
+        err = n ? mp_remove(n) : ESP_ERR_INVALID_ARG;
+    } else if (!strcmp(name, "miplug.rename")) {
+        const char *to = cJSON_GetStringValue(cJSON_GetObjectItem(args, "to"));
+        err = n && to ? mp_rename(n, to) : ESP_ERR_INVALID_ARG;
+    } else if (!strcmp(name, "miplug.set")) {  // {"name"?, "on": true|false}; no "on": the other way
         const cJSON *on = cJSON_GetObjectItem(args, "on");
-        const int at = n ? plug_list_find(&s_list, n) : s_current;
-        if (at < 0 || at >= s_list.count) {
-            *code = "NOT_FOUND";
-            return ESP_ERR_NOT_FOUND;
-        }
-        if (cJSON_IsBool(on)) post(JOB_SET, at, cJSON_IsTrue(on));
-        else post(JOB_TOGGLE, at, false);
-        cJSON_AddStringToObject(reply, "queued", s_list.items[at].name);
-        return ESP_OK;
+        err = mp_switch(n, cJSON_IsBool(on) ? cJSON_IsTrue(on) : -1);
+    } else if (!strcmp(name, "miplug.list")) {
+        err = ESP_OK;
+    } else {
+        *code = "UNKNOWN_COMMAND";
+        return ESP_ERR_NOT_SUPPORTED;
     }
-    *code = "UNKNOWN_COMMAND";
-    return ESP_ERR_NOT_SUPPORTED;
+    switch (err) {
+    case ESP_OK: mp_describe(reply); break;
+    case ESP_ERR_INVALID_ARG: *code = "BAD_DEVICE"; break;
+    case ESP_ERR_INVALID_STATE: *code = "NAME_TAKEN"; break;
+    case ESP_ERR_NO_MEM: *code = "FULL"; break;
+    default: *code = "NOT_FOUND"; break;
+    }
+    return err;
 }
 
 static esp_err_t on_command(const char *name, const cJSON *args, cJSON *reply, const char **code, void *ctx) {

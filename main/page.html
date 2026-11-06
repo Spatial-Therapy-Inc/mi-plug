@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>米家开关 · 设置</title>
+<style>
+  :root {
+    --paper: #171C19; --panel: #30372F; --ink: #FAF7EF; --ink2: #A5AA9E; --ink3: #737A70;
+    --coral: #DF795D; --coral-text: #EE9A80; --sage: #9FB38C; --cream: #F3E6C8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    padding: 20px 16px calc(32px + env(safe-area-inset-bottom));
+    max-width: 560px; margin: 0 auto;
+  }
+  h1 { font-size: 24px; font-weight: 600; margin: 4px 0 2px; }
+  h2 { font-size: 18px; font-weight: 600; margin: 28px 0 10px; }
+  .sub { color: var(--ink2); font-size: 14px; margin: 0; }
+  .card { background: var(--panel); border-radius: 16px; padding: 14px 16px; margin-bottom: 10px; }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .grow { flex: 1; min-width: 0; }
+  .name { font-size: 18px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta { color: var(--ink2); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip { font-size: 13px; padding: 2px 10px; border-radius: 999px; background: var(--paper); color: var(--ink2); white-space: nowrap; }
+  .chip.on { background: var(--sage); color: var(--paper); }
+  .chip.bad { color: var(--coral-text); }
+  .actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  button {
+    font: inherit; font-size: 15px; border: 0; border-radius: 12px; padding: 10px 14px; min-height: 44px;
+    background: var(--paper); color: var(--ink); cursor: pointer;
+  }
+  button.primary { background: var(--coral); color: var(--paper); font-weight: 600; }
+  button.quiet { background: transparent; color: var(--ink2); }
+  button:disabled { opacity: .5; }
+  label { display: block; color: var(--ink2); font-size: 14px; margin: 10px 0 4px; }
+  input[type=text], input[type=password], input[type=number] {
+    width: 100%; font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--ink3);
+    border-radius: 10px; padding: 10px 12px;
+  }
+  input:focus { outline: 2px solid var(--sage); border-color: transparent; }
+  input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--sage); flex: none; }
+  .pair { display: flex; gap: 10px; }
+  .pair > div { flex: 1; }
+  details summary { color: var(--ink2); font-size: 14px; margin-top: 12px; cursor: pointer; }
+  code { background: var(--paper); padding: 1px 6px; border-radius: 6px; font-size: 13px; white-space: nowrap; }
+  .hint { color: var(--ink2); font-size: 14px; }
+  .msg { min-height: 22px; font-size: 14px; margin-top: 8px; }
+  .msg.ok { color: var(--sage); }
+  .msg.err { color: var(--coral-text); }
+  .empty { color: var(--ink2); text-align: center; padding: 18px 0; }
+  #gone { display: none; }
+  body.gone main { display: none; }
+  body.gone #gone { display: block; }
+</style>
+</head>
+<body>
+<header>
+  <h1>米家开关</h1>
+  <p class="sub">在这里管理 Tikpal Voice 上的设备。只在你家的局域网里，不连外网。</p>
+</header>
+
+<div id="gone" class="card" style="margin-top:20px">
+  <div class="name">这个链接用不了了</div>
+  <p class="hint" id="goneWhy">在 Tikpal Voice 上按住侧键，扫新的二维码再打开。</p>
+</div>
+
+<main>
+  <h2>设备</h2>
+  <div id="list"><div class="empty">正在读取…</div></div>
+
+  <h2>从提取工具导入</h2>
+  <div class="card">
+    <p class="hint" style="margin-top:0">在电脑上运行提取工具时加上 <code>-o devices.json</code>，再在这里选这个文件。能直连的 Wi-Fi 设备会列出来，勾上要的、改好名字就行。</p>
+    <p class="hint">文件在电脑上的话，用电脑打开这一页更方便：</p>
+    <div class="row"><button id="copyLink">复制这一页的链接</button><span class="msg ok" id="copied"></span></div>
+    <label for="file">devices.json</label>
+    <input type="file" id="file" accept=".json,application/json">
+    <div id="picks"></div>
+    <div class="msg" id="importMsg"></div>
+  </div>
+
+  <h2>手动添加一台</h2>
+  <form class="card" id="addForm" autocomplete="off">
+    <label for="fName">名字（会说的那个，比如「台灯」）</label>
+    <input type="text" id="fName" maxlength="40" required>
+    <div class="pair">
+      <div><label for="fIp">IP</label><input type="text" id="fIp" inputmode="decimal" placeholder="192.168.31.20" required></div>
+      <div><label for="fModel">型号</label><input type="text" id="fModel" placeholder="cuco.plug.v3"></div>
+    </div>
+    <label for="fToken">token（32 位）</label>
+    <input type="password" id="fToken" maxlength="32" autocapitalize="off" spellcheck="false" required>
+    <details>
+      <summary>开关的编号（大多不用改）</summary>
+      <div class="pair">
+        <div><label for="fSiid">siid</label><input type="number" id="fSiid" value="2" min="1" max="255"></div>
+        <div><label for="fPiid">piid</label><input type="number" id="fPiid" value="1" min="1" max="255"></div>
+      </div>
+      <p class="hint">插座、台灯、风扇大多是 2 / 1。不对的话到 home.miot-spec.com 查这个型号「开关」那一项。老款插座会自动用老协议，不用管。</p>
+    </details>
+    <div class="actions"><button class="primary" type="submit">添加</button></div>
+    <div class="msg" id="addMsg"></div>
+  </form>
+
+  <p class="hint">这一页 10 分钟没操作会失效；在 Tikpal Voice 上点「完成」也会关掉。最多 8 台设备。</p>
+</main>
+
+<script>
+"use strict";
+const KEY = new URLSearchParams(location.hash.slice(1)).get("k") || "";
+const $ = (id) => document.getElementById(id);
+let devices = [];
+
+function el(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") e.className = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  for (const kid of kids) if (kid != null) e.append(kid);  // text goes in as text, never as HTML
+  return e;
+}
+
+function gone(why) {
+  if (why) $("goneWhy").textContent = why;
+  document.body.classList.add("gone");
+}
+
+async function api(path, body) {
+  const res = await fetch("/api/" + path, {
+    method: body ? "POST" : "GET",
+    headers: { "X-Key": KEY, "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+    cache: "no-store",
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 403) { gone(); throw new Error("KEY"); }
+  if (!res.ok) throw Object.assign(new Error(data.error || "HTTP " + res.status), { field: data.field });
+  return data;
+}
+
+const ERRORS = {
+  BAD_FIELD: (f) => ({ name: "名字不对（1–40 个字）", ip: "IP 不对", token: "token 要 32 位，0–9 和 a–f", siid: "siid / piid 要是 1–255", to: "名字不对" }[f] || "有一项不对"),
+  NAME_TAKEN: () => "这个名字已经有了",
+  FULL: () => "已经 8 台了，先删一台",
+  NOT_FOUND: () => "找不到这台设备",
+};
+const say = (e) => (ERRORS[e.message] ? ERRORS[e.message](e.field) : "没成功（" + e.message + "）");
+
+const NOTE = { busy: "正在连", unreachable: "连不上", token: "token 不对", refused: "设备不认这个开关" };
+
+function render() {
+  const list = $("list");
+  list.replaceChildren();
+  if (!devices.length) { list.append(el("div", { class: "empty" }, "还没有设备：从下面导入，或者手动添加。")); return; }
+  for (const d of devices) {
+    const bad = d.note && d.note !== "busy";
+    const chip = el("span", { class: "chip" + (d.power === "on" && !d.note ? " on" : "") + (bad ? " bad" : "") },
+      d.note ? NOTE[d.note] || d.note : d.power === "on" ? "开着" : d.power === "off" ? "关着" : "还没读");
+    const card = el("div", { class: "card" },
+      el("div", { class: "row" },
+        el("div", { class: "grow" }, el("div", { class: "name" }, d.name),
+          el("div", { class: "meta" }, (d.model || "未知型号") + " · " + d.ip + " · " + d.siid + "/" + d.piid)),
+        chip),
+      el("div", { class: "actions" },
+        el("button", { onclick: () => act("switch", { name: d.name, on: true }) }, "开"),
+        el("button", { onclick: () => act("switch", { name: d.name, on: false }) }, "关"),
+        el("button", { class: "quiet", onclick: () => rename(d.name) }, "改名"),
+        el("button", { class: "quiet", onclick: () => remove(d.name) }, "删除")));
+    list.append(card);
+  }
+}
+
+async function refresh() {
+  try { devices = (await api("devices")).devices || []; render(); } catch (e) { /* shown by gone() or next try */ }
+}
+
+async function act(op, body) {
+  try { devices = (await api(op, body)).devices || devices; render(); setTimeout(refresh, 1500); }
+  catch (e) { if (e.message !== "KEY") alert(say(e)); }
+}
+
+function rename(name) {
+  const to = prompt("新名字", name);
+  if (to && to.trim() && to.trim() !== name) act("rename", { name, to: to.trim() });
+}
+
+function remove(name) {
+  if (confirm("从 Tikpal Voice 上删掉「" + name + "」？")) act("remove", { name });
+}
+
+// ---- import: the extractor's -o file
+// MIIO_IMPORT_BEGIN
+// (test/test_page.mjs runs the code from here to MIIO_IMPORT_END)
+const SUPPORTED = /\.(plug|outlet|powerstrip|light|lamp|bulb|ceiling|fan|switch|heater|airpurifier|humidifier|kettle)\b|\.(plug|light|fan|switch)\./i;
+function parseExport(data) {
+  // [{server, homes:[{devices:[…]}]}], or {homes:[…]}, or a plain list of devices
+  const out = [];
+  const seen = new Set();
+  const visit = (d) => {
+    if (!d || typeof d !== "object") return;
+    const ip = String(d.localip || d.ip || "");
+    const token = String(d.token || "");
+    const did = String(d.did || "");
+    if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(ip) || ip === "0.0.0.0") return;  // not on the LAN (Bluetooth, Zigbee)
+    if (!/^[0-9a-f]{32}$/i.test(token)) return;
+    if (/^(blt|lumi|group|virtual)\./.test(did) || seen.has(did + ip)) return;
+    seen.add(did + ip);
+    const model = String(d.model || "");
+    out.push({ name: String(d.name || model || ip).trim().slice(0, 40), ip, token: token.toLowerCase(), model,
+               likely: SUPPORTED.test(model) });
+  };
+  const walk = (x) => {
+    if (Array.isArray(x)) x.forEach(walk);
+    else if (x && typeof x === "object") {
+      if (Array.isArray(x.devices)) x.devices.forEach(visit);
+      if (Array.isArray(x.homes)) x.homes.forEach(walk);
+      if (!x.devices && !x.homes && (x.localip || x.token)) visit(x);
+    }
+  };
+  walk(data);
+  return out;
+}
+/** Names made unique against `taken` (and each other): 「台灯」, 「台灯 2」… */
+function uniqueNames(items, taken) {
+  const used = new Set(taken);
+  return items.map((it) => {
+    let name = it.name, n = 2;
+    while (used.has(name)) name = (it.name.slice(0, 36) + " " + n++);
+    used.add(name);
+    return { ...it, name };
+  });
+}
+// MIIO_IMPORT_END
+
+let picks = [];
+$("file").addEventListener("change", async (ev) => {
+  const file = ev.target.files[0];
+  $("importMsg").textContent = "";
+  $("picks").replaceChildren();
+  if (!file) return;
+  let data;
+  try { data = JSON.parse(await file.text()); } catch { $("importMsg").className = "msg err"; $("importMsg").textContent = "这不是提取工具导出的 JSON"; return; }
+  picks = uniqueNames(parseExport(data), devices.map((d) => d.name));
+  if (!picks.length) { $("importMsg").className = "msg err"; $("importMsg").textContent = "文件里没有能直连的 Wi-Fi 设备"; return; }
+  const box = $("picks");
+  picks.forEach((p, i) => {
+    const check = el("input", { type: "checkbox", id: "pick" + i });
+    check.checked = p.likely;
+    const name = el("input", { type: "text", maxlength: "40", value: p.name });
+    p.check = check; p.input = name;
+    box.append(el("div", { class: "card", style: "background:var(--paper);margin-top:10px" },
+      el("div", { class: "row" }, check, el("div", { class: "grow" }, name,
+        el("div", { class: "meta", style: "margin-top:4px" }, (p.model || "未知型号") + " · " + p.ip)))));
+  });
+  box.append(el("p", { class: "hint" }, "默认勾上了插座、灯、风扇这类能开关的；电视、路由器、摄像头一般控制不了。"));
+  box.append(el("div", { class: "actions" }, el("button", { class: "primary", onclick: importPicked }, "导入勾选的")));
+});
+
+async function importPicked(ev) {
+  const button = ev.target;
+  const chosen = picks.filter((p) => p.check.checked);
+  if (!chosen.length) return;
+  button.disabled = true;
+  const msg = $("importMsg");
+  let ok = 0;
+  const failed = [];
+  for (const p of chosen) {
+    const name = p.input.value.trim();
+    try {
+      await api("add", { name, ip: p.ip, token: p.token, model: p.model, siid: 2, piid: 1 });
+      ok++;
+    } catch (e) {
+      if (e.message === "KEY") return;
+      failed.push(name + "：" + say(e));
+      if (e.message === "FULL") break;
+    }
+    msg.className = "msg ok"; msg.textContent = "导入了 " + ok + " / " + chosen.length;
+  }
+  if (failed.length) { msg.className = "msg err"; msg.textContent = "导入了 " + ok + " 台；没成功的：" + failed.join("；"); }
+  button.disabled = false;
+  refresh();
+}
+
+$("copyLink").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(location.href); $("copied").textContent = "复制了"; }
+  catch { prompt("复制这个链接", location.href); }
+});
+
+$("addForm").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const msg = $("addMsg");
+  const body = {
+    name: $("fName").value.trim(), ip: $("fIp").value.trim(), token: $("fToken").value.trim().toLowerCase(),
+    model: $("fModel").value.trim(), siid: Number($("fSiid").value) || 2, piid: Number($("fPiid").value) || 1,
+  };
+  try {
+    const r = await api("add", body);
+    devices = r.devices || devices; render();
+    msg.className = "msg ok"; msg.textContent = (r.replaced ? "替换了「" : "加好了「") + body.name + "」，正在读它的状态";
+    $("fToken").value = "";
+    setTimeout(refresh, 1500);
+  } catch (e) { if (e.message !== "KEY") { msg.className = "msg err"; msg.textContent = say(e); } }
+});
+
+if (!KEY) gone("请在 Tikpal Voice 上按住侧键，用手机扫屏幕上的二维码打开这一页。");
+else { refresh(); setInterval(() => { if (!document.hidden) refresh(); }, 3000); }
+</script>
+</body>
+</html>

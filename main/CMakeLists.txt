@@ -1,7 +1,8 @@
-idf_component_register(SRCS "main.c" "plug_logic.c" "miio_proto.c" "miio_lan.c" "mjson.c" "mp_crypto.c"
+idf_component_register(SRCS "main.c" "plug_logic.c" "miio_proto.c" "miio_lan.c" "mjson.c" "mp_crypto.c" "webcfg.c"
     INCLUDE_DIRS "."
+    EMBED_TXTFILES "page.html"
     REQUIRES yaykit_board lvgl__lvgl yaykit_app yaykit_key yaykit_link yaykit_ui yaykit_wifi json
-    PRIV_REQUIRES nvs_flash console esp_timer lwip esp_hw_support)
+    PRIV_REQUIRES nvs_flash console esp_timer lwip esp_hw_support esp_http_server)
 # The shared font partition; the app's own full install writes it too. Found through yaykit_board, wherever the
 # shared components are (this repository or the development kit).
 idf_component_get_property(board_dir yaykit_board COMPONENT_DIR)

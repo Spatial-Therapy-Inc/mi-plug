@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 # Extension firmware template (firmware guide 6). Copy to firmware/<slug>, rename the project to
 # yaykit_<slug with underscores> and the slug in main/main.c. Test builds may pass -DPROJECT_VER.
 if(NOT DEFINED PROJECT_VER)
-    set(PROJECT_VER "0.1.0")
+    set(PROJECT_VER "0.2.0")
 endif()
 # The shared firmware directory: in this repository the app sits in firmware/<slug>; in an app's own repository
 # (the development kit's `kit new`) the kit is its devkit/ submodule.

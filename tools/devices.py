@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""mi-plug's devices over USB (the round screen plugged in, mi-plug open on it).
+"""mi-plug's devices over USB (the round screen plugged in, mi-plug open on it): the backup to the config page
+(hold the side key on the round screen and scan the code with your phone).
 
   python3 tools/devices.py add            asks for the name, IP, model and token (the token is typed without echo)
   python3 tools/devices.py list           the devices on the round screen (never their tokens)
   python3 tools/devices.py remove 台灯
+  python3 tools/devices.py rename 台灯 卧室的台灯
   python3 tools/devices.py on|off|toggle [台灯]
 
 Needs pyserial (pip install pyserial). With more than one round screen plugged in: --port /dev/cu.usbmodem….
@@ -66,7 +68,7 @@ def main():
     port = yay_dev.default_port()
     if args[:1] == ['--port']:
         port, args = args[1], args[2:]
-    if not args or args[0] not in ('add', 'list', 'remove', 'on', 'off', 'toggle'):
+    if not args or args[0] not in ('add', 'list', 'remove', 'rename', 'on', 'off', 'toggle'):
         sys.exit(__doc__)
     con = yay_dev.Console(port)
     cmd, rest = args[0], args[1:]
@@ -76,6 +78,10 @@ def main():
         if not rest:
             sys.exit('which one? python3 tools/devices.py remove <name>')
         show(command(con, 'miplug.remove', {'name': rest[0]}))
+    elif cmd == 'rename':
+        if len(rest) < 2:
+            sys.exit('python3 tools/devices.py rename <name> <new name>')
+        show(command(con, 'miplug.rename', {'name': rest[0], 'to': rest[1]}))
     elif cmd in ('on', 'off', 'toggle'):
         a = {'name': rest[0]} if rest else {}
         if cmd != 'toggle':

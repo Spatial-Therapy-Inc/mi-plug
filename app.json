@@ -1,7 +1,7 @@
 {
   "slug": "mi-plug",
   "kind": "extension",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "name": {
     "zh": "米家开关",
     "en": "Mi Home Switch"
