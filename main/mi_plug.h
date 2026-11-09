@@ -1,4 +1,4 @@
-// What both ways of managing mi-plug's devices use: `yk cmd miplug.*` over USB (main.c) and the config page on
+// What both ways of managing home-switch's devices use: `yk cmd homeswitch.*` over USB (main.c) and the config page on
 // the home network (webcfg.c). Each call takes the app's lock itself; call from a task whose stack is in internal
 // RAM (the list is saved to NVS). Tokens never come back out.
 #pragma once

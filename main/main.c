@@ -1,7 +1,7 @@
-// mi-plug（米家开关）: switches the user's own Xiaomi Wi-Fi devices (plugs, lights, fans…) on and off from the round
+// home-switch（家电开关）: switches the user's own Xiaomi Wi-Fi devices (plugs, lights, fans…) on and off from the round
 // screen, straight over the home network with the miIO protocol. A self-use prototype: nothing goes to the
 // internet. Devices (IP, token, model) are added from a phone: hold the side key, scan the QR code, and the config
-// page on the home network (webcfg.c) adds, imports, renames and tries them; or over USB (`yk cmd miplug.*`).
+// page on the home network (webcfg.c) adds, imports, renames and tries them; or over USB (`yk cmd homeswitch.*`).
 //
 // One device a page: tap the big circle or the side key to switch it, swipe left or right for the next one. Yay can
 // open the app with {"action":"on|off|toggle","device":"台灯"}.
@@ -35,10 +35,10 @@
 #include "yaykit_wifi.h"
 #include "yk_hint.h"
 
-#define APP_SLUG "mi-plug"
-static const char *TAG = "mi-plug";
+#define APP_SLUG "home-switch"
+static const char *TAG = "home-switch";
 
-#define NVS_NS "yk_miplug"
+#define NVS_NS "yk_homeswitch"
 #define CIRCLE_D 220
 #define CIRCLE_CY 225
 #define SWIPE_PX 60
@@ -438,7 +438,7 @@ static void apply_launch(const yk_launch_t *launch) {
         else if (action && !strcmp(action, "off")) post(JOB_SET, index, false);
         else if (action && !strcmp(action, "toggle")) post(JOB_TOGGLE, index, false);
     }
-    printf("MI_PLUG_LAUNCH action=%s found=%d\n", action ? action : "-", device ? plug_list_find(&s_list, device) >= 0 : -1);
+    printf("HOME_SWITCH_LAUNCH action=%s found=%d\n", action ? action : "-", device ? plug_list_find(&s_list, device) >= 0 : -1);
     cJSON_Delete(params);
 }
 
@@ -562,26 +562,26 @@ esp_err_t mp_switch(const char *name, int on) {
     return ESP_OK;
 }
 
-// ---------------------------------------------------------------- yk cmd miplug.*: the same over USB
+// ---------------------------------------------------------------- yk cmd homeswitch.*: the same over USB
 
 static esp_err_t plug_command(const char *name, const cJSON *args, cJSON *reply, const char **code) {
     const char *n = cJSON_GetStringValue(cJSON_GetObjectItem(args, "name"));
     esp_err_t err;
-    if (!strcmp(name, "miplug.add")) {
+    if (!strcmp(name, "homeswitch.add")) {
         const char *field = NULL;
         bool replaced = false;
         err = mp_add(args, &field, &replaced);
         if (err == ESP_ERR_INVALID_ARG) cJSON_AddStringToObject(reply, "field", field ? field : "name");
         if (err == ESP_OK) cJSON_AddBoolToObject(reply, "replaced", replaced);
-    } else if (!strcmp(name, "miplug.remove")) {
+    } else if (!strcmp(name, "homeswitch.remove")) {
         err = n ? mp_remove(n) : ESP_ERR_INVALID_ARG;
-    } else if (!strcmp(name, "miplug.rename")) {
+    } else if (!strcmp(name, "homeswitch.rename")) {
         const char *to = cJSON_GetStringValue(cJSON_GetObjectItem(args, "to"));
         err = n && to ? mp_rename(n, to) : ESP_ERR_INVALID_ARG;
-    } else if (!strcmp(name, "miplug.set")) {  // {"name"?, "on": true|false}; no "on": the other way
+    } else if (!strcmp(name, "homeswitch.set")) {  // {"name"?, "on": true|false}; no "on": the other way
         const cJSON *on = cJSON_GetObjectItem(args, "on");
         err = mp_switch(n, cJSON_IsBool(on) ? cJSON_IsTrue(on) : -1);
-    } else if (!strcmp(name, "miplug.list")) {
+    } else if (!strcmp(name, "homeswitch.list")) {
         err = ESP_OK;
     } else {
         *code = "UNKNOWN_COMMAND";
@@ -681,7 +681,7 @@ void app_main(void) {
     // 7. The console, then ready; the worker (its stack in internal RAM: it writes NVS) and Wi-Fi last.
     start_console();
     yk_app_ready();
-    xTaskCreate(worker, "miplug", 6144, NULL, 4, NULL);
+    xTaskCreate(worker, "homeswitch", 6144, NULL, 4, NULL);
     ESP_ERROR_CHECK(yk_wifi_start());
     if (launched) apply_launch(&launch);
 }

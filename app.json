@@ -1,33 +1,33 @@
 {
-  "slug": "mi-plug",
+  "slug": "home-switch",
   "kind": "extension",
   "version": "0.2.0",
   "name": {
-    "zh": "米家开关",
-    "en": "Mi Home Switch"
+    "zh": "家电开关",
+    "en": "Home Switch"
   },
   "boards": [
     "tikpal-r1"
   ],
   "layout": "yaykit-v1",
-  "minYay": "0.1.13",
-  "apiLevel": 3,
+  "minYay": "0.1.14",
+  "apiLevel": 4,
   "capabilities": {},
   "launch": {
     "summary": {
-      "zh": "在圆屏上开关家里的小米 Wi-Fi 设备：插座、台灯、风扇。点一下开，再点一下关，左右滑换设备。",
-      "en": "Switch your Xiaomi Wi-Fi devices at home (plugs, lamps, fans) on and off from the round screen."
+      "zh": "在圆屏上开关家里的 Wi-Fi 智能设备：插座、台灯、风扇。点一下开，再点一下关，左右滑换设备。",
+      "en": "Switch your Wi-Fi smart devices at home (plugs, lamps, fans) on and off from the round screen."
     },
     "examples": {
       "zh": [
-        "打开米家开关",
+        "打开家电开关",
         "把插座打开",
         "关掉台灯",
         "帮我把风扇关了",
         "开一下卧室的灯"
       ],
       "en": [
-        "Open Mi Home Switch",
+        "Open Home Switch",
         "Turn the plug on",
         "Turn off the lamp",
         "Switch the fan off"
@@ -51,13 +51,12 @@
   },
   "aliases": {
     "zh": [
-      "米家",
-      "插座",
-      "智能插座"
+      "智能插座",
+      "插座开关"
     ],
     "en": [
-      "Mi Home",
-      "Smart plug"
+      "Smart plug",
+      "Plug switch"
     ]
   },
   "scenes": [
@@ -66,5 +65,8 @@
   "audience": "all",
   "pricing": {
     "kind": "free"
+  },
+  "voiceCode": {
+    "number": 264
   }
 }

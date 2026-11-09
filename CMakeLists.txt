@@ -21,4 +21,4 @@ set(EXTRA_COMPONENT_DIRS
 set(COMPONENTS main espcoredump)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 include(${YAYKIT_FIRMWARE}/reproducible.cmake)
-project(yaykit_mi_plug)
+project(yaykit_home_switch)

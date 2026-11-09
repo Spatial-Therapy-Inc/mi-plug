@@ -1,4 +1,4 @@
-// mi-plug host tests: the crypto against known vectors, miIO packets byte for byte against a Python reference
+// home-switch host tests: the crypto against known vectors, miIO packets byte for byte against a Python reference
 // (python-miio's algorithm), the JSON reader, the device list and the requests and answers of each kind of device.
 #include <assert.h>
 #include <stdio.h>
@@ -208,6 +208,6 @@ static int test_requests(void) {
 
 int main(void) {
     if (test_crypto() || test_miio() || test_json() || test_list_and_kinds() || test_requests()) return 1;
-    printf("mi-plug host tests: %d checks passed\n", s_checks);
+    printf("home-switch host tests: %d checks passed\n", s_checks);
     return 0;
 }

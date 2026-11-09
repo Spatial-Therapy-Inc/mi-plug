@@ -1,4 +1,4 @@
-// mi-plug's logic in plain C (host tests run it): the devices the user added, how each model is switched, the JSON
+// home-switch's logic in plain C (host tests run it): the devices the user added, how each model is switched, the JSON
 // requests sent over miIO and how their answers read.
 //
 // A device is a Xiaomi Wi-Fi device on the home network: its IP, its 32-hex token (the user takes it once from their

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Host tests for mi-plug's logic (no device, no ESP-IDF needed).
+# Host tests for home-switch's logic (no device, no ESP-IDF needed).
 set -euo pipefail
 cd "$(dirname "$0")"
 OUT=$(mktemp -d)

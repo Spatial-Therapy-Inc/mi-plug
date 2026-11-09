@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""mi-plug's devices over USB (the round screen plugged in, mi-plug open on it): the backup to the config page
+"""home-switch's devices over USB (the round screen plugged in, home-switch open on it): the backup to the config page
 (hold the side key on the round screen and scan the code with your phone).
 
   python3 tools/devices.py add            asks for the name, IP, model and token (the token is typed without echo)
@@ -10,7 +10,7 @@
 
 Needs pyserial (pip install pyserial). With more than one round screen plugged in: --port /dev/cu.usbmodem….
 
-The token goes to the device only on `yk cmd miplug.add -`'s argument line, which the device reads itself (never
+The token goes to the device only on `yk cmd homeswitch.add -`'s argument line, which the device reads itself (never
 echoed, never in its console history); it is not on this command line (shell history) and nothing here prints or
 stores it.
 """
@@ -37,14 +37,14 @@ def command(con, name, args=None, secret=False):
     if secret:
         yay_dev.send(con, f'yk cmd {name} -')
         if not yay_dev.wait_for(con, 'YK_ARGS', 5):
-            sys.exit('the round screen did not ask for the device: is mi-plug open on it?')
+            sys.exit('the round screen did not ask for the device: is home-switch open on it?')
         con.s.write((json.dumps(args, ensure_ascii=False, separators=(',', ':')) + '\n').encode())
     else:
         text = json.dumps(args or {}, ensure_ascii=False, separators=(',', ':'))
         yay_dev.send(con, f'yk cmd {name} {text}')
     line = reply_of(con)
     if not line:
-        sys.exit('no answer: is mi-plug open on the round screen?')
+        sys.exit('no answer: is home-switch open on the round screen?')
     if line.startswith('YK_ERR'):
         sys.exit(line)
     return json.loads(line.split(' ', 1)[1]) if ' ' in line else {}
@@ -73,20 +73,20 @@ def main():
     con = yay_dev.Console(port)
     cmd, rest = args[0], args[1:]
     if cmd == 'list':
-        show(command(con, 'miplug.list'))
+        show(command(con, 'homeswitch.list'))
     elif cmd == 'remove':
         if not rest:
             sys.exit('which one? python3 tools/devices.py remove <name>')
-        show(command(con, 'miplug.remove', {'name': rest[0]}))
+        show(command(con, 'homeswitch.remove', {'name': rest[0]}))
     elif cmd == 'rename':
         if len(rest) < 2:
             sys.exit('python3 tools/devices.py rename <name> <new name>')
-        show(command(con, 'miplug.rename', {'name': rest[0], 'to': rest[1]}))
+        show(command(con, 'homeswitch.rename', {'name': rest[0], 'to': rest[1]}))
     elif cmd in ('on', 'off', 'toggle'):
         a = {'name': rest[0]} if rest else {}
         if cmd != 'toggle':
             a['on'] = cmd == 'on'
-        print(command(con, 'miplug.set', a))
+        print(command(con, 'homeswitch.set', a))
     else:
         print('From the token extractor: the device\'s IP, MODEL and TOKEN. Name it the way you will say it ("台灯").')
         device = {
@@ -98,7 +98,7 @@ def main():
         device['siid'] = int(ask('siid', '2'))
         device['piid'] = int(ask('piid', '1'))
         device['token'] = getpass.getpass('Token (32 hex, not shown): ').strip()
-        reply = command(con, 'miplug.add', device, secret=True)
+        reply = command(con, 'homeswitch.add', device, secret=True)
         del device
         print('replaced' if reply.get('replaced') else 'added')
         show(reply)

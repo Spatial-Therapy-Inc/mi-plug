@@ -1,4 +1,4 @@
-// mi-plug's config page on the home network (esp_http_server, port 80): the phone scans the QR code on the round
+// home-switch's config page on the home network (esp_http_server, port 80): the phone scans the QR code on the round
 // screen, http://<the round screen's address>/#k=<key>, and adds, imports, renames, removes and tries devices there.
 //
 // The page itself is public; every /api/ call carries the key (X-Key) that the round screen made when it showed

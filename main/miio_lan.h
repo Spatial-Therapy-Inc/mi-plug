@@ -1,5 +1,5 @@
 // miIO over UDP on the home network (ESP-IDF, lwIP sockets): hello, one request, its answer. Blocking; call from
-// mi-plug's worker task, never from LVGL or the key task. Talks only to the device's own address on the LAN (and
+// home-switch's worker task, never from LVGL or the key task. Talks only to the device's own address on the LAN (and
 // the LAN's broadcast address when looking for a device whose address changed); nothing goes to the internet.
 #pragma once
 
