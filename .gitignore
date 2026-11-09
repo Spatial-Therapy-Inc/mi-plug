@@ -5,3 +5,7 @@ sdkconfig
 sdkconfig.old
 .DS_Store
 __pycache__/
+shots/
+heap.json
+ai-selfreview.json
+*.tikpal
