@@ -1,7 +1,7 @@
 {
   "slug": "home-switch",
   "kind": "extension",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "name": {
     "zh": "家电开关",
     "en": "Home Switch"
@@ -68,5 +68,16 @@
   },
   "voiceCode": {
     "number": 264
+  },
+  "privacy": {
+    "collects": [
+      {
+        "data": "usage",
+        "why": {
+          "zh": "离开时把刚开关了哪台设备告诉伙伴",
+          "en": "When you leave, tells your companion which device you just switched"
+        }
+      }
+    ]
   }
 }
