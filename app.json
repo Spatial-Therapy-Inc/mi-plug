@@ -15,8 +15,8 @@
   "capabilities": {},
   "launch": {
     "summary": {
-      "zh": "在圆屏上开关家里的 Wi-Fi 智能设备：插座、台灯、风扇。点一下开，再点一下关，左右滑换设备。",
-      "en": "Switch your Wi-Fi smart devices at home (plugs, lamps, fans) on and off from the round screen."
+      "zh": "在 Tikpal Voice 上开关家里的 Wi-Fi 智能设备：插座、台灯、风扇。点一下开，再点一下关，左右滑换设备。",
+      "en": "Switch your Wi-Fi smart devices at home (plugs, lamps, fans) on and off from Tikpal Voice."
     },
     "examples": {
       "zh": [
